@@ -3,6 +3,7 @@
 INSTALL_DIRS=(
     ~/.agents/skills
     ~/.codebuddy/skills
+    ~/.workbuddy/skills
 )
 
 for INSTALL_DIR in "${INSTALL_DIRS[@]}"; do
