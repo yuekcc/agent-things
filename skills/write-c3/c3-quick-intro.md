@@ -54,6 +54,7 @@ switch (x) {
 - `foreach (v : list)` 遍历；`foreach (&v : list)` 取引用。
 - 可给循环加标签：`while LOOP: (true) { ... continue LOOP; }`。
 - `defer expr` 在函数退出前执行；`defer (void)resource.free();`。
+- **坑：`if`/`else` 的分支必须带 `{}`**，即使只有一行——这是 C3 语法硬性要求，不能写 `if (x) foo();` 这种无括号单行形式（`else` 同理）。
 
 ### 1.4 数组与切片
 
@@ -71,6 +72,19 @@ int[]  tail = arr[1:2];      // [起始:长度]：{2, 3}
 - `a[start:len]` 中冒号后是**长度**不是结束下标，可省略写成 `a[:len]`（从头取 len 个）。
 - `^n` 从尾部倒数：`^1 == len-1`、`^0 == len`。`s[1..^2]` 去掉首尾各 1 个，`s[0:^0]` 是整串。**指针没有长度，不能用 `^n` 也不能省略边界。**
 - 要半开区间语义 `[from, to)` 只能手动换算：`a[from : to - from]`。`to < from` 时无符号减法会下溢，需自己先判空。
+- 写涉及切片的代码时，建议先定义**半开区间 helper** 统一走它，避免每次手动换算与下溢：
+
+  ```c3
+  fn String slice(String s, usz from, usz to) @inline
+  {
+      if (to > s.len) to = s.len;   // 越界 clamp 到末尾
+      if (from > to) from = to;     // 防无符号下溢
+      return s[from : to - from];
+  }
+  ```
+
+- **坑：`uchar` 不是 C3 的类型名**（没有 `unsigned char` 对应物）。取单字节用 `(uint)c & 0xFF`，其中 `c` 是 `char`/`int`。
+- **坑：不允许嵌套 C 风格强转**，`(uint)(uchar)c` 会编译报错。需要多步转换时先存中间变量：`int x = (int)c; uint y = (uint)x;`。
 - 切片有 `.ptr` 与 `.len`。
 - 常用整数类型：`usz`（无符号 size）、`sz`（有符号）、`iptr`/`uptr`（与 `void*` 同宽）。
 
@@ -205,6 +219,7 @@ alloc::free(mem, s);                       // 与 alloc::new 成对
 `Allocator` 主要有 `mem`（堆全局）与 `tmem`（临时）。
 
 > 坑：`allocator` 不是内置变量，别照着文档里的占位名直接写——实参要传 `mem`、`tmem` 或自定义的 `Allocator`。
+> 另外**默认堆分配器就是 `mem`**（不是 `allocator::heap()` 之类的函数调用）；值类型的 `.copy(mem)` / `.free(mem)` 也走它，例如 `String s2 = s.copy(mem);` 复制、`s2.free(mem);` 释放。
 
 ### 4.3 字符串构建用 `DString`
 
@@ -224,9 +239,12 @@ import std::collections::list;   // List 不在隐式导入范围内，需显式
 List{int} list;
 list.init(tmem);                    // 未初始化时默认也是 tmem
 list.push(1);
-usz n = list.len();                 // 元素个数（也可访问 .size 字段）
+usz n = list.len();                 // 元素个数（也可访问 .size 字段）；注意 len() 实际返回 sz，见下方坑
 int[] arr = list.to_array(mem);     // 转定长数组
 list.free();                        // 手动释放（默认 tmem 时也可靠 @pool 自动）
+
+> 坑：`List.len()` 返回 `sz`（有符号 long），**不是 `usz`**；与 `usz` 混用（作下标、传给收 `usz` 的 API）必须显式转换。`List.get(idx)` 同样收 `sz` 下标。
+> 坑：`List.free()` **只释放容器本身，不释放元素**。元素是堆上对象（如 `String`、指针）时要自己遍历逐个 `free`，否则泄漏。
 ```
 
 > 坑：容器默认 `tmem`，若要在 `@pool()` 之外长期存活，必须 `init(mem)` 或把元素 `copy(mem)`。
@@ -460,6 +478,8 @@ fn void test_add() @test {
 
 运行：`c3c test`，单个测试 `c3c test --test-filter test_add --test-show-output`。
 
+> 坑：`c3c test` 会检测内存泄漏。栈上分配的 `String`/容器等若未手动 `free`（或脱离 `@pool` 作用域回收），测试会报泄漏。**栈上 `String` 也要回收**——别以为出了作用域就自动归零。
+
 ---
 
 ## 13. 项目配置 `project.json`
@@ -498,6 +518,13 @@ C3 使用 `project.json` 描述构建：
 - **字符串拼接**：没有 `+` / `++` 运算符——编译期用 `+++`，运行时用 `.concat(mem, s2)` / `.tconcat(s2)` 或 `string::format`。
 - **切片区间是闭区间**：`a[1..3]` 取 3 个元素（不是 2 个）；`a[start:len]` 冒号后是长度；**`a[0..a.len]` 会 panic**，取整段用 `a[..]`，要半开语义就写 `a[from : to-from]`。
 - **`var` 推断**：运行时局部必须写 `var x @safeinfer = ...`。
+- **`if/else` 必须带 `{}`**：即使分支只有一行也不能省略花括号（语法硬要求）。
+- **`uchar` 不是类型**：取字节用 `(uint)c & 0xFF`；不允许嵌套强转 `(uint)(uchar)c`，先存中间变量。
+- **半开区间用 `slice` helper**：`a[i..j]` 闭区间易踩坑，统一走 `slice(s, from, to)`（内部 clamp + 防下溢）更安全。
+- **`List.len()` 返回 `sz`**：有符号，与 `usz` 混用需显式转换；`List.get(sz)` 也收 `sz`。
+- **`List.free()` 不释放元素**：堆元素需自己遍历 free。
+- **默认堆分配器是 `mem`**：不是 `allocator::heap()`；值类型用 `.copy(mem)`/`.free(mem)` 分配与释放。
+- **`c3c test` 检测泄漏**：栈上 `String` 也得手动回收。
 - **`allocator` 不是变量**：分配器实参写 `mem` / `tmem`。
 - **时间**：取本地时间必须 `datetime::now().to_local()`，否则拿到 UTC。
 - **`File?` 不能 `= null`**：`null` 会被当作 `void*`，报 `You cannot cast 'void*' to 'File'`；用 `File` + `bool` 标志位管理可关闭资源。
