@@ -4,8 +4,7 @@ description: 用 Jeff Patton 用户故事地图分析需求，然后生成 PRD�
 metadata: 
   notes: 参考 https://github.com/deanpeters/Product-Manager-Skills/blob/main/skills/user-story-mapping-workshop/SKILL.md
 ---
-
-应用 Jeff Patton 的 user story mapping 方法论分析需求，拆分 user stories。沿设计路径推进，在关键检查点确认：活动骨架、发布切片、PRD 草稿。若用户要求纯技术设计，说明本 skill 不适用，并建议技术设计模板。
+运用 Jeff Patton 的 user story mapping 方法论分析需求，拆分 user stories。沿设计路径推进，在关键检查点确认：活动骨架、发布切片、PRD 草稿。若用户要求纯技术设计，说明本 skill 不适用，并建议技术设计模板。
 
 ## 设计路径
 
