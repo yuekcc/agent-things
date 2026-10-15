@@ -54,7 +54,7 @@ switch (x) {
 - `foreach (v : list)` 遍历；`foreach (&v : list)` 取引用。
 - 可给循环加标签：`while LOOP: (true) { ... continue LOOP; }`。
 - `defer expr` 在函数退出前执行；`defer (void)resource.free();`。
-- **坑：`if`/`else` 的分支必须带 `{}`**，即使只有一行——这是 C3 语法硬性要求，不能写 `if (x) foo();` 这种无括号单行形式（`else` 同理）。
+- **坑：`if` 的单条语句 then 分支不能带 `else`，且必须与 `)` 同行**。`if (x) foo();`（同行、无花括号）是合法的；但换行写单语句会报语法错误。要写 `else` 时必须用 `{}` 块（`if (x) { ... } else { ... }`）。
 
 ### 1.4 数组与切片
 
@@ -141,9 +141,7 @@ C3 用 **可选类型**（`T?`）表达“值或错误（fault）”。
 ### 3.1 定义 fault
 
 ```c3
-faultdef
-    NOT_FOUND, PERMISSION_DENIED, IO_ERROR,
-;
+excuse NOT_FOUND, PERMISSION_DENIED, IO_ERROR;
 ```
 
 ### 3.2 返回可选类型
@@ -282,7 +280,7 @@ char[]? content = file::load(mem, "data.txt");   // 一次性读，返回 char[]
 if (try c = content) { ... }
 
 file::save(path, content)!!;                     // 保存，失败即 panic
-File f = file::open(path, "r")!!;                // 打开，返回 File（不是可选）
+File f = file::open(path, "r")!!;                // 打开，返回 File?，!! 解包（失败即 panic）
 defer (void)f.close();                           // close 返回 void?，必须处理
 ```
 
@@ -291,7 +289,7 @@ defer (void)f.close();                           // close 返回 void?，必须�
 
 ### 6.2 写入流：必须传指针
 
-`io::fprintf(OutStream out, ...)` 等接收流接口的参数**必须传指针** `&file`。`File` 实现了 `OutStream`/`InStream` 接口，传 `&file` 可隐式转换。这些流函数返回值是可选类型（`fprintf` 返回 `sz?`，`flush` 返回 `void?`），**必须显式处理**：
+`io::fprintf(OutStream out, ...)` 等接收流接口的参数**必须传指针** `&file`（接口只接受指针转换；传值 `file` 会报 `You can only convert pointers to an interface`）。`File` 实现了 `OutStream`/`InStream` 接口，传 `&file` 可隐式转换。这些流函数返回值是可选类型（`fprintf` 返回 `sz?`，`flush` 返回 `void?`），**必须显式处理**：
 
 ```c3
 (void)io::fprintf(&file, "x=%d\n", x);   // 或 !! / !，直接写会编译报错
@@ -454,7 +452,7 @@ alias IntStack = Stack{int};
 | `std::io` | 打印、`File`、流 |
 | `std::io::file` | `file::load`/`save`/`open` |
 | `std::io::path` | `Path` 相关操作 |
-| `std::core::mem` / `std::core::mem::allocator` | 分配器、`mem::new`/`free`、`alloc::new`、`tmem`、`mem` |
+| `std::core::mem` / `std::core::mem::alloc` | 分配器、`mem::new`/`alloc`/`free`、`alloc::new`/`free`、`tmem`、`mem` |
 | `std::collections::list` 等 | `DString`、`List`、`HashMap`（`List` 不在隐式导入内，需显式 import） |
 | `std::core::string` | `string::format` / `tformat`、`.concat` |
 | `std::math` | 数学、随机 |
@@ -518,7 +516,7 @@ C3 使用 `project.json` 描述构建：
 - **字符串拼接**：没有 `+` / `++` 运算符——编译期用 `+++`，运行时用 `.concat(mem, s2)` / `.tconcat(s2)` 或 `string::format`。
 - **切片区间是闭区间**：`a[1..3]` 取 3 个元素（不是 2 个）；`a[start:len]` 冒号后是长度；**`a[0..a.len]` 会 panic**，取整段用 `a[..]`，要半开语义就写 `a[from : to-from]`。
 - **`var` 推断**：运行时局部必须写 `var x @safeinfer = ...`。
-- **`if/else` 必须带 `{}`**：即使分支只有一行也不能省略花括号（语法硬要求）。
+- **`if` 单语句 then 不能带 `else`、且须与 `)` 同行**：`if (x) foo();` 合法，但换行写单语句报错；带 `else` 时必须用 `{}`。
 - **`uchar` 不是类型**：取字节用 `(uint)c & 0xFF`；不允许嵌套强转 `(uint)(uchar)c`，先存中间变量。
 - **半开区间用 `slice` helper**：`a[i..j]` 闭区间易踩坑，统一走 `slice(s, from, to)`（内部 clamp + 防下溢）更安全。
 - **`List.len()` 返回 `sz`**：有符号，与 `usz` 混用需显式转换；`List.get(sz)` 也收 `sz`。
@@ -528,7 +526,7 @@ C3 使用 `project.json` 描述构建：
 - **`allocator` 不是变量**：分配器实参写 `mem` / `tmem`。
 - **时间**：取本地时间必须 `datetime::now().to_local()`，否则拿到 UTC。
 - **`File?` 不能 `= null`**：`null` 会被当作 `void*`，报 `You cannot cast 'void*' to 'File'`；用 `File` + `bool` 标志位管理可关闭资源。
-- **流参数传指针**：`io::fprintf(&file, ...)`、`f.read(&buf, ...)`。
+- **流参数传指针**：`io::fprintf(&file, ...)`、`f.read(&buf, ...)`（接口参数只接受指针转换，传值会报错；`read` 的缓冲区是定长数组时传 `&buf`，是 `char[]` 切片变量时直接传）。
 - **接口实现**：`struct X (Iface)` + `@dynamic` 方法；调用时隐式转换成接口，无需强转。
 - **资源嵌入**：模板/配置用 `$embed` 编进二进制。
 - **安全模式**：`-O0`/`-O1` 为安全模式（含契约、边界、空指针检查），`-O2` 及以上默认关闭；也可用 `--safe=<yes|no>` 单独开关。**没有 `--fast` 开关**。
@@ -570,7 +568,7 @@ fn int square(int x) @export("square") { return x * x; }
 - **没有 `const` / `volatile` 限定符**：用标准库的 `@volatile_load` / `@volatile_store`。
 - **不支持 C 的 `_Atomic`**：改用标准库的泛型 `Atomic` 类型。
 - **bitstruct** 对 C 呈现为其 backing type；C 的 bitfield 需要手工转成对应布局的 bitstruct。
-- **C 枚举大小按 `CInt`**；非连续枚举用 `constdef`。
+- **C 枚举大小按 `CInt`**；非连续枚举用 `constset`。
 - **可选类型的 C ABI**：`fn int? get_value();` 对应 `c3fault_t get_value(int* value_ref);`，fault 作返回值，结果通过引用传出。
 
 ### 15.4 编译器与链接器
