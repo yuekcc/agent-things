@@ -22,7 +22,9 @@ const INSTALL_DIRS = [
 ];
 
 // 手动配置的旧 skill 名称：即使源里还有，也强制清理（留空则仅按源清单自动清理）
-const STALE_SKILLS = [];
+const STALE_SKILLS = [
+  'g-commit-code'
+];
 
 function expand(p) {
   return p.startsWith('~') ? path.join(os.homedir(), p.slice(1)) : p;
