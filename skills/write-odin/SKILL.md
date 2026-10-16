@@ -1,6 +1,6 @@
 ---
 name: write-odin
-description: Odin 编程语言指导。当你使用 Odin 语言编程时使用
+description: Odin 语言编程指导。使用 Odin 编程语言时使用
 metadata:
   url: https://github.com/4fuu/odin-lang-skill
   license: MIT
