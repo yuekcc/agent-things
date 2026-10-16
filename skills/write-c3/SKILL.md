@@ -17,7 +17,7 @@ C3 是 C 语言的演进版本，专为系统编程设计。它在保持 C ABI �
 - 运算符重载、泛型、接口
 - 标准库内置切片、字符串与容器
 
-C3 代码用 `fn` 声明函数，用 `struct`/`union`/`enum` 声明类型，并遵循严格的命名规则（类型：`PascalCase`，常量：`SCREAMING_SNAKE_CASE`，其余一律：`snake_case`）。
+C3 代码用 `fn` 声明函数，用 `struct`/`union`/`enum` 声明类型。命名惯例：类型用 `PascalCase`、常量用 `SCREAMING_SNAKE_CASE`、其余（变量/函数/参数）用 `snake_case`；编译器真正强制的是首字母大小写——类型与常量以大写字母开头，其余以小写字母开头。
 
 ## 阅读标准库以获取代码示例
 
