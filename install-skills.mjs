@@ -23,7 +23,12 @@ const INSTALL_DIRS = [
 
 // 手动配置的旧 skill 名称：即使源里还有，也强制清理（留空则仅按源清单自动清理）
 const STALE_SKILLS = [
-  'g-commit-code'
+  'g-commit-code',
+  'xlsx',
+  'docx',
+  'pptx',
+  'pdf',
+  'research'
 ];
 
 function expand(p) {
